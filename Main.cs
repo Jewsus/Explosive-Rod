@@ -1,16 +1,15 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using Terraria;
-using Hooks;
 using TShockAPI;
+using TerrariaApi.Server;
 
 namespace ExplosiveRod
 {
 
-    [APIVersion(1, 12)]
-    public class ExplosiveRod: TerrariaPlugin
-    {        
+    [ApiVersion(1, 23)]
+    public class ExplosiveRod : TerrariaPlugin
+    {
         private static bool[] cannonPlayers = new bool[256];
         private static List<Projectile> projectileList = new List<Projectile>();
         public override string Name
@@ -30,10 +29,10 @@ namespace ExplosiveRod
             get { return new Version("1.8"); }
         }
         public override void Initialize()
-        {     
-            GameHooks.Update += OnUpdate;
+        {
+            ServerApi.Hooks.GameUpdate.Register(this, OnUpdate);
             GetDataHandlers.NewProjectile += OnProjectile;
-            ServerHooks.Leave += OnLeave;
+            ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
 
             Commands.ChatCommands.Add(new Command("explosiverod", cannonCommand, "cannon"));
         }
@@ -41,9 +40,9 @@ namespace ExplosiveRod
         {
             if (disposing)
             {
-                GameHooks.Update -= OnUpdate;
+                ServerApi.Hooks.GameUpdate.Deregister(this, OnUpdate);
                 GetDataHandlers.NewProjectile += OnProjectile;
-                ServerHooks.Leave -= OnLeave;
+                ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
             }
             base.Dispose(disposing);
         }
@@ -52,11 +51,12 @@ namespace ExplosiveRod
         {
             Order = 5;
         }
-        void OnLeave(int who)
+        void OnLeave(LeaveEventArgs args)
         {
+            int who = 0;
             cannonPlayers[who] = false;
         }
-        public void OnUpdate()
+        public void OnUpdate(EventArgs args)
         {
             try
             {
@@ -74,19 +74,19 @@ namespace ExplosiveRod
                         WorldGen.TripWire(x + 1, y);
                         Main.tile[x, y].wire = false;
                         Main.tile[x + 1, y].wire = false;
-                        TShockAPI.TSPlayer.All.SendTileSquare(x, y, 4);                    
+                        TShockAPI.TSPlayer.All.SendTileSquare(x, y, 4);
                         projectileList[i].active = false;
                         NetMessage.SendData((int)PacketTypes.ProjectileDestroy, -1, -1, "", projectileList[i].identity);
                         projectileList.RemoveAt(i);
                     }
                 }
             }
-            catch (Exception ex) { Log.ConsoleError(ex.ToString()); }
+            catch (Exception ex) { TShock.Log.ConsoleError(ex.ToString()); }
 
 
         }
-        void OnProjectile(Object sender, GetDataHandlers.NewProjectileEventArgs args)
-        {         
+        void OnProjectile(object sender, GetDataHandlers.NewProjectileEventArgs args)
+        {
             if (args.Owner < 255)
             {
                 var projectile = Main.projectile[args.Identity];
@@ -98,7 +98,7 @@ namespace ExplosiveRod
         }
         public void generateExplosives(float x, float y)
         {
-            generateExplosives((int)(x / 16), (int)(y / 16));              
+            generateExplosives((int)(x / 16), (int)(y / 16));
         }
 
         public void generateExplosives(int x, int y)
@@ -109,7 +109,7 @@ namespace ExplosiveRod
             Main.tile[x, y].frameY = 18;
             Main.tile[x, y].wire = true;
         }
-      
+
         public void cannonCommand(CommandArgs args)
         {
             int plyID = args.Player.Index;
